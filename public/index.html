@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Mini Chat App</title>
+    <meta charset="UTF-8" />
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div id="userSection">
+      <h3>Users</h3>
+      <ul id="userList"></ul>
+    </div>
+
+    <ul id="messages"></ul>
+
+    <form id="form">
+      <input id="input" autocomplete="off" placeholder="Type a message..." />
+      <button type="submit">Send</button>
+    </form>
+
+    <button id="switchRoomBtn">Switch Room</button>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+      // Ask for username and room
+      let username = "";
+      while (!username) {
+        username = prompt("Enter your username:");
+      }
+
+      let room = "";
+      while (!room) {
+        room = prompt("Enter a room number (from 1-5):");
+      }
+      room = String(room);
+
+      // Connect socket with auth
+      const socket = io({
+        auth: {
+          username,
+          room,
+        },
+      });
+
+      // UI elements
+      const messagesList = document.getElementById("messages");
+      const form = document.getElementById("form");
+      const input = document.getElementById("input");
+      const userList = document.getElementById("userList");
+      const switchRoomBtn = document.getElementById("switchRoomBtn");
+
+      // Add room title
+      const roomTitle = document.createElement("h2");
+      roomTitle.textContent = `Room: ${room}`;
+      document.body.insertBefore(roomTitle, messagesList);
+
+      // Switch room handler
+      switchRoomBtn.addEventListener("click", () => {
+        const newRoom = prompt("Enter a new room number (from 1-5):");
+        if (newRoom && newRoom !== room) {
+          socket.emit("switch room", newRoom);
+          room = newRoom;
+          roomTitle.textContent = `Room: ${room}`;
+          messagesList.innerHTML = ""; // Clear old messages
+        }
+      });
+
+      // Form submit (send message)
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        if (input.value.trim()) {
+          socket.emit("chat message", input.value);
+          input.value = "";
+        }
+      });
+
+      // Live message listener
+      socket.on("chat message", (data) => {
+        const item = document.createElement("li");
+        const isSelf = data.username === username;
+
+        item.textContent = `${data.username}: ${data.message}`;
+        item.classList.add(isSelf ? "self" : "other");
+
+        messagesList.appendChild(item);
+        messagesList.scrollTop = messagesList.scrollHeight;
+      });
+
+      // System Notification
+      socket.on("system message", (text) => {
+        const item = document.createElement("li");
+        item.textContent = text;
+        item.classList.add("system");
+        messagesList.appendChild(item);
+        messagesList.scrollTop = messagesList.scrollHeight;
+      });
+
+      // Chat history on join/switch
+      socket.on("chat history", (messages) => {
+        messagesList.innerHTML = "";
+        messages.forEach((msg) => {
+          const item = document.createElement("li");
+          const isSelf = msg.username === username;
+
+          item.textContent = `${msg.username}: ${msg.content}`;
+          item.classList.add(isSelf ? "self" : "other");
+
+          messagesList.appendChild(item);
+        });
+
+        messagesList.scrollTop = messagesList.scrollHeight;
+      });
+
+      // Update user list
+      socket.on("room users", (users) => {
+        userList.innerHTML = "";
+        users.forEach((user) => {
+          const li = document.createElement("li");
+          li.textContent = user;
+          userList.appendChild(li);
+        });
+      });
+    </script>
+  </body>
+</html>
